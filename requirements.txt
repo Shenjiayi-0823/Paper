@@ -1,0 +1,13 @@
+# MCP SDK 1.x provides mcp.server.fastmcp.FastMCP.
+mcp>=1.12,<2
+openai>=2,<3
+arxiv>=2.2,<3
+PyMuPDF>=1.26,<2
+streamlit>=1.65,<2
+pydantic>=2.11,<3
+pytest>=8.3,<9
+python-dotenv>=1.1,<2
+# Directly used for PDF streaming and arXiv session timeouts.
+requests>=2.32,<2.33
+urllib3>=2,<3
+jsonschema>=4.20,<5
