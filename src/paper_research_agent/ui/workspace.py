@@ -50,7 +50,29 @@ def theme_css():
 def style():
     # Only presentation styling; native widgets retain accessibility and events.
     st.html('<style>' + theme_css() + '''
-      .stMainBlockContainer {padding-top:2rem; max-width:1600px;}
+      .stMainBlockContainer {padding-top:4.5rem; max-width:1600px;}
+      .st-key-workspace_heading h1 {
+        font-size:clamp(1.8rem,3.2vw,2.6rem); line-height:1.3;
+        white-space:normal; overflow-wrap:break-word; padding-bottom:.4rem;
+      }
+      .st-key-compact_navigation {display:none;}
+      body:has([data-testid="stSidebar"][aria-expanded="false"]) .st-key-compact_navigation {
+        display:block; position:fixed; top:4.5rem; left:.5rem;
+        width:64px!important; max-width:64px!important;
+        max-height:calc(100dvh - 5rem); overflow-y:auto; z-index:100;
+        padding:8px; border:1px solid var(--pra-border); border-radius:12px;
+        background:var(--pra-surface); box-shadow:0 2px 8px rgba(24,33,47,.06);
+      }
+      body:has([data-testid="stSidebar"][aria-expanded="false"]) .stMainBlockContainer {
+        padding-left:5.25rem!important;
+      }
+      .st-key-compact_navigation button {
+        width:44px; min-height:44px; padding:0; justify-content:center;
+      }
+      .st-key-compact_navigation button [data-testid="stMarkdownContainer"] {
+        position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+        overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap;
+      }
       [data-testid="stSidebar"] button {justify-content:flex-start; min-height:3rem; border:0;}
       [data-testid="stVerticalBlockBorderWrapper"] {border-radius:12px;}
       h1, h2, h3 {letter-spacing:-0.025em;}
@@ -77,7 +99,7 @@ def style():
       }
       [data-testid="stMetricValue"] {font-size:2rem;}
       @media (max-width:900px) {
-        .stMainBlockContainer {padding:1rem;}
+        .stMainBlockContainer {padding:4.5rem 1rem 1rem;}
       }
     </style>''')
 
@@ -95,6 +117,16 @@ def navigation(state):
                     navigate(state, name)
             st.divider()
         st.caption('本地单用户模式')
+
+
+def compact_navigation(state):
+    # Native buttons use the same routing as the sidebar. CSS reacts directly
+    # to Streamlit's aria-expanded attribute, without a model call or rerun.
+    with st.container(key='compact_navigation'):
+        for name, (label, icon) in NAVIGATION.items():
+            if st.button(label, icon=icon, help=label, key='compact_nav_' + name,
+                         type='primary' if state['page'] == name else 'tertiary'):
+                navigate(state, name)
 
 
 def research_context(state):

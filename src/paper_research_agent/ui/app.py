@@ -5,7 +5,7 @@ from paper_research_agent.database.service import HistoryService, PersistentBack
 from .backend import WebBackend
 from .state import initialize
 from .components import monitor
-from .workspace import style, navigation
+from .workspace import style, navigation, compact_navigation
 from . import search_page, reader_page, recommend_page, dashboard_page, library_page, history_page, settings_page
 
 
@@ -31,8 +31,10 @@ def main():
     preference_controls(state)
     style()
     navigation(state)
-    st.title('Paper Research Workspace')
-    st.caption('从文献发现到研究积累的一体化工作台')
+    compact_navigation(state)
+    with st.container(key='workspace_heading'):
+        st.title('Paper Research Workspace')
+    st.caption('')
     st.divider()
     page = state['page']
     backend = PersistentBackend(raw, history, state.get('force_execution', False))

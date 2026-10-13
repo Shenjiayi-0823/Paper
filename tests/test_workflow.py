@@ -249,3 +249,16 @@ def test_discover_direct_favorite_and_actual_context_counts(monkeypatch, history
     at.button(key='discover_save_1706.00001').click().run()
     assert LibraryService(history).overview()['library'] == 0
     state['uploads'].cleanup()
+
+
+def test_compact_navigation_keeps_context_and_never_calls_backend(monkeypatch, history):
+    at, calls = app_setup(monkeypatch, history)
+    state = at.session_state['pra']
+    select_paper(state, history, paper('1706.00001'))
+    ident = state['current_paper']['paper_id']
+    for name in ['Discover','Paper Reader','Related Research','Library','History','Settings','Dashboard']:
+        at.button(key='compact_nav_' + name).click().run()
+        assert not at.exception and state['page'] == name
+        assert state['current_paper']['paper_id'] == ident
+    assert calls == []
+    state['uploads'].cleanup()
