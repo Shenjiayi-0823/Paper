@@ -24,6 +24,12 @@ def initialize(state):
     if 'pra' not in state:
         state['pra'] = {'uploads':UploadStore(),'tasks':{},'analyses':{},'recommendations':{},
             'search':[],'search_query':'','selected':None,'job':None,'last':None,'events':[], 'connection':'尚未检测'}
+    state['pra'].setdefault('page', 'Dashboard')
+    state['pra'].setdefault('current_paper', None)
+    state['pra'].setdefault('reader_pages', {})
+    state['pra'].setdefault('pdf_previews', {})
+    state['pra'].pop('ui_theme', None)
+    state['pra'].setdefault('ui_language', 'zh')
     return state['pra']
 
 
@@ -67,7 +73,16 @@ def poll_job(state):
         state['search_query'] = outcome.data.get('query','')
     if job.source_key and outcome.data.get('analysis'):
         state['analyses'][job.source_key] = outcome.data['analysis']
+        current = state.get('current_paper')
+        if current and current['source_key'] == job.source_key:
+            current['analysis_query_id'] = outcome.data.get('history_query_id')
+            current.pop('analysis_origin', None)
+            title = outcome.data['analysis']['title']
+            if title != 'Not specified':
+                current['paper']['title'] = title
     if job.source_key and outcome.data.get('recommendations'):
         state['recommendations'][job.source_key] = outcome.data['recommendations']
+    if job.source_key and outcome.data.get('preview'):
+        state['pdf_previews'][job.source_key] = outcome.data['preview']
     state['job'] = None
     return True

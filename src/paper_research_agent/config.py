@@ -42,6 +42,8 @@ class Settings(BaseModel):
     analysis_max_chunks: int = Field(default=24, ge=1, le=100)
     analysis_format_retries: int = Field(default=1, ge=0, le=2)
     data_dir: Path = PROJECT_ROOT / "data"
+    database_path: Path = PROJECT_ROOT / "data" / "paper_agent.db"
+    search_cache_seconds: int = Field(default=3600, ge=0)
 
     @field_validator("openai_api_key", mode="before")
     @classmethod
@@ -68,7 +70,7 @@ class Settings(BaseModel):
             path = path[:-len("/chat/completions")]
         return urlunsplit((parts.scheme, parts.netloc, path, "", ""))
 
-    @field_validator("data_dir", mode="before")
+    @field_validator("data_dir", "database_path", mode="before")
     @classmethod
     def resolve_data_dir(cls, value: str | Path) -> Path:
         if isinstance(value, str) and not value.strip():

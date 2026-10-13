@@ -1,50 +1,86 @@
+"""Compact discovery list; choosing a paper is separate from paid analysis."""
 import hashlib
-import streamlit as st
-from .components import launch, show_outcome, show_paper, show_report, retry_button
+from datetime import datetime, timezone
+from html import escape
+from .i18n import st
+from .components import launch, show_outcome, show_paper
+from .workflow import select_paper, navigate
+from paper_research_agent.database.library import LibraryService
+from .workspace import research_context
 
 
-def render(state,backend,settings):
-    st.subheader('Paper Search')
-    st.caption('真实 arXiv 检索，经 MCP 执行；检索本身不调用 LLM。')
+def dated_query(query, years, now=None):
+    if not years:
+        return query.strip()
+    now = now or datetime.now(timezone.utc)
+    try:
+        start = now.replace(year=now.year-years)
+    except ValueError:
+        start = now.replace(year=now.year-years, day=28)
+    return f'({query.strip()}) AND submittedDate:[{start:%Y%m%d}0000 TO {now:%Y%m%d}2359]'
+
+
+def render(state, backend, settings):
+    main, context = st.columns([3, 1], gap='large')
+    with main:
+        render_results(state, backend, settings)
+    with context:
+        research_context(state)
+
+
+def render_results(state, backend, settings):
+    st.header('文献发现')
+    st.caption('搜索、筛选并收集值得阅读的论文')
     with st.form('paper_search'):
-        query = st.text_input('研究关键词或 arXiv 检索表达式',max_chars=1000)
-        count = st.slider('论文数量',1,20,5)
-        sort = st.selectbox('排序',['relevance','submittedDate'])
-        submitted = st.form_submit_button('检索论文',disabled=state['job'] is not None)
-    key = 'search_'+hashlib.sha256(f'{query.strip()}|{count}|{sort}'.encode()).hexdigest()
+        query = st.text_input('研究关键词或 arXiv 检索表达式', max_chars=1000,
+                              placeholder='例如：data center energy management', key='search_keywords')
+        a, b, c = st.columns(3)
+        count = a.slider('论文数量', 1, 20, 5, key='search_count')
+        sort = b.selectbox('排序', ['relevance', 'submittedDate'], key='search_sort')
+        years = c.selectbox('发表时间', [0, 5, 1], format_func=lambda value: '不限年份' if not value else f'最近 {value} 年', key='search_years')
+        submitted = st.form_submit_button('检索论文', disabled=state['job'] is not None)
+    actual_query = dated_query(query, years)
+    key = 'search_' + hashlib.sha256(f'{actual_query}|{count}|{sort}'.encode()).hexdigest()
     if submitted:
         if not query.strip():
             st.warning('请输入研究关键词。')
-        elif key in state['tasks']:
-            st.info('此检索已执行，复用当前会话结果。')
+        elif key in state['tasks'] and not backend.force:
             outcome = state['tasks'][key]
             if outcome.success:
-                state['search'] = outcome.data.get('papers',[])
-                state['search_query'] = outcome.data.get('query',query.strip())
+                state['search'], state['search_query'] = outcome.data.get('papers', []), outcome.data.get('query', query.strip())
             state['last'] = outcome
         else:
-            launch(state,key,'search',None,backend,{'query':query.strip(),'max_results':count,'sort_by':sort})
+            state['tasks'].pop(key, None)
+            launch(state, key, 'search', None, backend, {'query': actual_query, 'max_results': count, 'sort_by': sort})
     if key in state['tasks']:
         show_outcome(state['tasks'][key])
-        retry_button(state,key)
     if not state['search']:
-        if key in state['tasks'] and state['tasks'][key].success and not state['tasks'][key].data.get('papers'):
-            st.info('检索成功，但未找到匹配论文。可调整英文关键词或检索表达式。')
-        else:
-            st.info('输入关键词后点击检索；请求失败与没有匹配结果是不同状态。')
+        st.info('检索成功，但未找到匹配论文。' if key in state['tasks'] and state['tasks'][key].success else '输入关键词开始发现论文。失败与无匹配结果会分别显示。')
     else:
-        st.caption('以下为当前保留的成功检索结果：'+state['search_query'])
+        st.caption('保留的检索结果：' + state['search_query'])
     for paper in state['search']:
-        st.divider()
-        show_paper(paper)
-        ident = paper['arxiv_id']
-        source_key = 'arxiv:'+ident
-        task_key = 'analysis_'+source_key
-        if st.button('深度分析',key='deep_'+ident,disabled=state['job'] is not None or not settings.openai_api_key or task_key in state['tasks']):
-            state['selected'] = ident
-            launch(state,task_key,'analyze_paper',source_key,backend,{'source_type':'arxiv','arxiv_id':ident,'language':'中文'})
-        if task_key in state['tasks']:
-            show_outcome(state['tasks'][task_key])
-            retry_button(state,task_key)
-        if source_key in state['analyses']:
-            show_report(state['analyses'][source_key],'download_'+ident)
+        with st.container(border=True):
+            st.html('<h3 class="paper-card-title">' + escape(paper['title']) + '</h3>')
+            st.caption(', '.join(paper.get('authors', [])) + ' · ' + str(paper.get('published') or '日期未提供')[:10] + ' · ' + paper['arxiv_id'])
+            abstract = paper.get('abstract', '')
+            excerpt = abstract[:210] + ('…' if len(abstract) > 210 else '')
+            st.html('<p class="paper-card-abstract">' + escape(excerpt) + '</p>')
+            with st.expander('完整摘要与 PDF'):
+                show_paper(paper)
+            ident = paper['arxiv_id']
+            try:
+                library = LibraryService(state['history'])
+                paper_id = library.ensure_paper(paper)
+                saved = library.get_entry(paper_id)
+                left, right = st.columns(2)
+                with left:
+                    if st.button('取消收藏' if saved else '收藏', icon=':material/bookmark:', key='discover_save_' + ident, type='tertiary'):
+                        library.favorite(paper_id, not bool(saved))
+                        st.rerun()
+                with right:
+                    opened = st.button('阅读分析 →', key='open_' + ident, width='stretch', type='tertiary')
+                if opened:
+                    select_paper(state, state['history'], paper)
+                    navigate(state, 'Paper Reader')
+            except Exception:
+                st.error('文献库操作失败，检索结果已保留。')

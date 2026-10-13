@@ -17,6 +17,14 @@ from test_pdf import make_pdf
 from test_analysis import analyze, topic, paper, ranked
 
 
+@pytest.fixture(autouse=True)
+def temporary_history_database(tmp_path, monkeypatch):
+    import paper_research_agent.ui.app as app
+    from paper_research_agent.database.service import HistoryService
+    monkeypatch.setattr(app, 'HistoryService', lambda settings: HistoryService(settings.model_copy(
+        update={'database_path': tmp_path / 'history.db'})))
+
+
 @pytest.mark.parametrize('name',['app','components','search_page','analysis_page','recommend_page','state','formatters','uploads','backend'])
 def test_ui_module_imports(name):
     assert importlib.import_module('paper_research_agent.ui.'+name)
@@ -180,7 +188,8 @@ def test_streamlit_app_and_search_click_does_not_repeat(monkeypatch):
     monkeypatch.setattr(app,'WebBackend',FakeBackend)
     at = AppTest.from_file(str(PROJECT_ROOT/'app.py'),default_timeout=10).run()
     assert not at.exception
-    assert [tab.label for tab in at.tabs] == ['Paper Search','PDF Analysis','Related Papers']
+    assert all(at.button(key='nav_' + name) for name in ['Dashboard','Discover','Paper Reader','Related Research','Library','History','Settings'])
+    at.button(key='nav_' + 'Discover').click().run()
     at.text_input[0].set_value('energy')
     at.button(key='FormSubmitter:paper_search-检索论文').click().run()
     for _ in range(3):
@@ -210,6 +219,7 @@ def test_upload_analysis_recommendation_and_failure_preserve_report(monkeypatch)
                 error=None if operation=='analyze_paper' else {'code':'search_tool_error','message':'Mock search failed'})
     monkeypatch.setattr(app,'WebBackend',FakeBackend)
     at = AppTest.from_file(str(PROJECT_ROOT/'app.py'),default_timeout=10).run()
+    at.button(key='nav_' + 'Paper Reader').click().run()
     pdf_bytes = make_pdf()
     at.file_uploader[0].set_value(('source.pdf',pdf_bytes,'application/pdf')).run()
     assert not at.exception
@@ -220,8 +230,8 @@ def test_upload_analysis_recommendation_and_failure_preserve_report(monkeypatch)
             break
     assert not at.exception and len(at.session_state['pra']['analyses']) == 1
     assert calls == [('analyze_paper',False)]
-    # The same content uploaded on a different tab reuses the session file/report.
-    at.file_uploader[1].set_value(('renamed.pdf',pdf_bytes,'application/pdf')).run()
+    # Current paper is retained across pages; recommendation needs no upload.
+    at.button(key='nav_' + 'Related Research').click().run()
     assert len(at.session_state['pra']['uploads'].files) == 1
     at.button(key='recommend_upload_button').click().run()
     for _ in range(3):
@@ -231,6 +241,7 @@ def test_upload_analysis_recommendation_and_failure_preserve_report(monkeypatch)
     assert not at.exception and calls[-1] == ('recommend_related',True)
     assert task_status(at.session_state['pra']['last']) == 'partial'
     assert len(at.session_state['pra']['analyses']) == 1
+    at.button(key='nav_' + 'Paper Reader').click().run()
     assert at.download_button
     at.session_state['pra']['uploads'].cleanup()
 

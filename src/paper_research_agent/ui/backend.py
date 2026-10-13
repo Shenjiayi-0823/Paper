@@ -74,6 +74,8 @@ class WebBackend:
                         async def call_tool(self,name,params):
                             begin = time.monotonic()
                             result = await client.call_tool(name,params)
+                            if name == 'search_arxiv' and operation == 'recommend_related':
+                                outcome.data.setdefault('candidate_searches', []).append({'parameters': params, 'result': result})
                             outcome.trace.append({'name':name,'success':result.get('success'), 'error':result.get('error'), 'elapsed_seconds':round(time.monotonic()-begin,2)})
                             return result
                     tools = TimedTools()
