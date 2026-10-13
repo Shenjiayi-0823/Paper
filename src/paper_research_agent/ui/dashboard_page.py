@@ -1,6 +1,7 @@
 from .i18n import st
 from paper_research_agent.database.library import LibraryService
 from .workflow import navigate
+from .recent_tasks import render_recent
 
 
 def render(state, backend, settings):
@@ -21,11 +22,6 @@ def render(state, backend, settings):
         else:
             if st.button('发现论文', key='dashboard_discover'):
                 navigate(state, 'Discover')
-        st.subheader('最近任务')
-        for row in state['history'].list_query_history(page_size=5):
-            st.text(f'#{row.id} · {row.query_type} · {row.status} · {row.query_text}')
-            if st.button('回顾', key='dashboard_history_' + str(row.id)):
-                state['history_selected'] = row.id
-                navigate(state, 'History')
+        render_recent(state, 'dashboard_history_')
     except Exception:
         st.error('无法读取研究概览，请检查数据库。')

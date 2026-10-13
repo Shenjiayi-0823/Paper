@@ -4,6 +4,7 @@ import streamlit as native
 from streamlit.delta_generator import DeltaGenerator
 
 EN = {
+    '搜索':'Search', '分析':'Analysis', '推荐':'Recommendation', '暂无最近任务。':'No recent tasks.',
     '研究历史':'Research history', '按最近执行排序':'Most recent first', '关闭详情':'Close details', '返回研究历史':'Back to research history',
     '搜索论文标题或查询关键词':'Search paper titles or query keywords', '全部类型':'All types',
     '文献检索':'Paper search', '文献推荐':'Recommendations', '等待执行':'Pending', '执行中':'Running',

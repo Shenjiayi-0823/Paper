@@ -2,6 +2,7 @@
 from .i18n import st
 from paper_research_agent.database.library import LibraryService
 from .workflow import navigate
+from .recent_tasks import render_recent
 
 NAVIGATION = {
     'Dashboard': ('研究概览', ':material/dashboard:'),
@@ -56,6 +57,24 @@ def style():
       .paper-card-title {font-size:1.2rem; font-weight:600; padding:0; margin:0 0 .6rem;}
       .paper-card-abstract {font-size:.95rem; line-height:1.6; margin:.5rem 0;}
       [class*="st-key-history_row_"] button {justify-content:flex-start; text-align:left; font-weight:600;}
+      [class*="st-key-recent_task_card_"] button {
+        justify-content:flex-start; text-align:left; min-height:64px;
+        padding:.8rem .95rem; border:1px solid var(--pra-border)!important;
+        border-radius:10px; background:var(--pra-surface)!important;
+        transition:background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+      }
+      [class*="st-key-recent_task_card_"] button [data-testid="stMarkdownContainer"] {
+        width:100%; text-align:left;
+      }
+      [class*="st-key-recent_task_card_"] button:hover,
+      [class*="st-key-recent_task_card_"] button:focus-visible {
+        background:#EAF2FB!important; border-color:#7D9DBF!important;
+        box-shadow:0 2px 6px rgba(24,33,47,.08);
+      }
+      [class*="st-key-recent_task_card_"] button:focus-visible {outline:2px solid #496A8B; outline-offset:2px;}
+      @media (prefers-reduced-motion:reduce) {
+        [class*="st-key-recent_task_card_"] button {transition:none;}
+      }
       [data-testid="stMetricValue"] {font-size:2rem;}
       @media (max-width:900px) {
         .stMainBlockContainer {padding:1rem;}
@@ -93,12 +112,6 @@ def research_context(state):
         st.metric('已收藏论文', counts['library'])
         st.metric('已完成分析', counts['analyses'])
         st.divider()
-        st.subheader('最近任务')
-        labels = {'search': '论文检索', 'analysis': '论文分析', 'recommendation': '相关推荐'}
-        for row in state['history'].list_query_history(page_size=3):
-            st.caption(labels.get(row.query_type, row.query_type) + ' · ' + row.status)
-            if st.button('查看任务 #' + str(row.id), key='context_history_' + str(row.id), type='tertiary'):
-                state['history_selected'] = row.id
-                navigate(state, 'History')
+        render_recent(state, 'context_history_')
     except Exception:
         st.warning('研究统计暂不可用。')

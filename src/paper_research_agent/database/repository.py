@@ -66,6 +66,21 @@ class Repository:
                 titles[query_id] = title if title and title != 'Not specified' else fallback
         for row in rows:
             row.display_title = titles.get(row.id)
+        # Failed/running analysis can still refer to metadata saved by a search.
+        arxiv_ids = {re.sub(r'v\d+$','',row.parameters_json.get('arxiv_id') or '') for row in rows}
+        hashes = {row.parameters_json.get('pdf_sha256') for row in rows if row.parameters_json.get('pdf_sha256')}
+        metadata = self.session.execute(select(Paper.arxiv_id, Paper.content_hash, Paper.title).where(
+            or_(Paper.arxiv_id.in_(arxiv_ids - {''}), Paper.content_hash.in_(hashes))))
+        by_id, by_hash = {}, {}
+        for ident, digest, title in metadata:
+            if ident:
+                by_id[ident] = title
+            if digest:
+                by_hash[digest] = title
+        for row in rows:
+            if not row.display_title or row.display_title == 'Not specified':
+                ident = re.sub(r'v\d+$','',row.parameters_json.get('arxiv_id') or '')
+                row.display_title = by_id.get(ident) or by_hash.get(row.parameters_json.get('pdf_sha256'))
         return rows
 
     def get_query_result(self, query_id):

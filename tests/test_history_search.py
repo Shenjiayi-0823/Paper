@@ -126,3 +126,27 @@ def test_failed_history_opens_error_without_running_task(monkeypatch,history):
     assert not at.exception and any('Stored failure message' in item.value for item in at.error)
     assert calls == []
     at.session_state['pra']['uploads'].cleanup()
+
+
+def test_failed_task_uses_saved_paper_title_in_recent_tasks(history):
+    from paper_research_agent.ui.recent_tasks import recent_label
+    with history.database.transaction() as session:
+        repo=Repository(session)
+        repo.paper(paper('2506.02752v1','Actual source paper title'))
+        row=repo.create_query(session_id='s',query_type='analysis',query_text='2506.02752v1',
+            parameters_json={'source_type':'arxiv','arxiv_id':'2506.02752v1'}, cache_key='key',status='failed')
+    row=history.list_query_history()[0]
+    assert row.display_title == 'Actual source paper title'
+    assert 'Actual source paper title' in recent_label(row)
+    assert recent_label(row) == '分析：Actual source paper title · 失败'
+
+
+def test_recent_task_opens_history_without_api(monkeypatch,history):
+    ident=add_search(history,'MIP','Search result')
+    at,calls=app_setup(monkeypatch,history)
+    label=at.button(key=f'dashboard_history_{ident}').label
+    assert 'MIP' in label and '成功' in label
+    at.button(key=f'dashboard_history_{ident}').click().run()
+    assert not at.exception and at.session_state['pra']['history_selected'] == ident
+    assert calls == []
+    at.session_state['pra']['uploads'].cleanup()
